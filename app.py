@@ -380,7 +380,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
         
         msg = (
-            f"⚡ <tg-emoji emoji-id=\"5260341774305417436\">🚨</tg-emoji> <b>Erişim Bekleniyor, {first_name}!</b>\n\n"
+            f"⚡ <b>Erişim Bekleniyor, {first_name}!</b>\n\n"
             f"1️⃣ Lütfen zorunlu kanallara katılın.\n"
             f"2️⃣ Botu açabilmek için en az <b>{REQUIRED_REFERRALS}</b> kişi davet etmelisiniz.\n\n"
             f"📊 <b>Mevcut Davetlerin:</b> <code>{current_refs}/{REQUIRED_REFERRALS}</code>\n"
@@ -393,8 +393,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_db()
     
     welcome_msg = (
-        f"👑 <tg-emoji emoji-id=\"5431599863204565715\">👑</tg-emoji> <b>HOŞ GELDİNİZ, VIP KRAL {first_name}</b> <tg-emoji emoji-id=\"5431599863204565715\">👑</tg-emoji>\n\n"
-        f"💎 <tg-emoji emoji-id=\"5368324170685685516\">🔮</tg-emoji> <i>Referans ve Güvenlik Sistemi Onaylandı. Panel Aktiftir.</i>\n\n"
+        f"👑 <b>HOŞ GELDİNİZ, VIP KRAL {first_name}</b> 👑\n\n"
+        f"💎 <i>Referans ve Güvenlik Sistemi Onaylandı. Panel Aktiftir.</i>\n\n"
         f"👇 <b>Aşağıdaki menüden işlem seçin:</b>"
     )
     await update.message.reply_text(welcome_msg, parse_mode="HTML", reply_markup=get_main_keyboard(user_id))
@@ -791,9 +791,9 @@ async def post_init(application: Application):
     asyncio.create_task(background_api_watcher(application))
 
 
-# ==================== RENDER İÇİN PORT BAĞLANTI SUNUCUSU ====================
+# ==================== RENDER WEB SERVER KÖPRÜSÜ ====================
 async def handle_health_check(request):
-    return web.Response(text="Vantorium OTP Bot is running!", status=200)
+    return web.Response(text="Bot is running smoothly!", status=200)
 
 async def start_web_server():
     app = web.Application()
@@ -803,7 +803,7 @@ async def start_web_server():
     port = int(os.getenv("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logger.info(f"Render Web Sunucusu {port} portunda aktifleştirildi.")
+    logger.info(f"Render Sağlık Sunucusu {port} portunda başlatıldı.")
 
 
 def main():
@@ -817,8 +817,13 @@ def main():
 
     print("🚀 Vantorium Team Kalıcı Veri Tabanlı OTP Botu Aktif!")
     
-    # Render'ın port kontrolünü geçmesi için web sunucusunu arka planda başlatıyoruz
-    loop = asyncio.get_event_loop()
+    # Python 3.10+ ve Render uyumlu güvenli event loop yönetimi
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
     loop.create_task(start_web_server())
     
     app.run_polling()
