@@ -1,5 +1,6 @@
-import os, sys, shutil, tempfile, sqlite3, subprocess, time, ast, re, zipfile
+import os, sys, shutil, tempfile, sqlite3, subprocess, time, ast, re, zipfile, threading
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot import types
 
@@ -10,7 +11,7 @@ except ImportError:
     PSUTIL = False
 
 BOT_TOKEN   = "8733440452:AAGZSroDubpgFfSRnBGfKmsmW4GqqzhnCqk"
-ADMIN_IDS   = [123456789]
+ADMIN_IDS   = [8913966694]  # Owner ID güncellendi
 SUPPORT_LINK = "https://t.me/sarsamanxdd"
 DB_PATH     = "panel.db"
 BOTS_DIR    = "user_bots"
@@ -726,10 +727,33 @@ def on_text(msg):
                 reply_markup=kb)
         _states.pop(uid, None)
 
+# ==========================================
+# RENDER İÇİN SAHTE HTTP SUNUCUSU (PORT ÇÖZÜMÜ)
+# ==========================================
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Bot is running successfully!")
+
+    def log_message(self, format, *args):
+        pass  # HTTP loglarını sustur
+
+def start_http_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    print(f"✅ Sahte HTTP Sunucusu başlatıldı. Port: {port}")
+    server.serve_forever()
+
 if __name__ == "__main__":
     init_db()
     sync_states()
     os.makedirs(BOTS_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
+    
+    # HTTP sunucusunu arka planda başlat (Render port taraması için)
+    threading.Thread(target=start_http_server, daemon=True).start()
+    
     print("VDS Panel başlatılıyor...")
     bot.infinity_polling(timeout=30, long_polling_timeout=30)
