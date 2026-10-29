@@ -19,6 +19,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 
 # Logging ayarları
@@ -32,22 +34,6 @@ BOT_TOKEN = "8805611364:AAGrJX1rPCt6m2GpF8VXuMNLZG9ADsi42KA"
 BOT_USERNAME = "vantoriumotp_bot"  # Kendi botunun kullanıcı adını buraya yaz (başında @ olmadan)
 ADMIN_ID = 8913966694
 
-# Zorunlu Kanal ve Gruplar
-CHANNELS = [
-    {
-        "id": -1003947388912,
-        "name": "⚡ Vantorium Team #krallik",
-        "url": "https://t.me/+3A7s7kVfaoMxYjM0",
-        "required": True
-    },
-    {
-        "id": -1004443368027,
-        "name": "💎 Vantorium Team Sohbet",
-        "url": "https://t.me/vantoriumchat",
-        "required": False
-    }
-]
-
 # Gerekli Referans Sayısı
 REQUIRED_REFERRALS = 3
 FLOOD_DELAY = 1.5
@@ -60,6 +46,7 @@ seen_sms_hashes = set()
 user_active_numbers: Dict[int, str] = {}
 user_cooldowns: Dict[int, float] = {}
 failed_request_counts: Dict[str, int] = {}
+waiting_for_broadcast: set = set()
 
 # ==================== KALICI VERİ YÖNETİMİ (JSON) ====================
 
@@ -218,19 +205,6 @@ def detect_platform(item: Dict[str, Any], sms_text: str) -> str:
     return "WHATSAPP"
 
 
-async def check_channel_membership(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    for ch in CHANNELS:
-        if ch.get("required", False):
-            try:
-                member = await context.bot.get_chat_member(chat_id=ch["id"], user_id=user_id)
-                if member.status in ["left", "kicked"]:
-                    return False
-            except Exception as e:
-                logger.error(f"Kanal denetim hatası: {e}")
-                return False
-    return True
-
-
 def parse_json_safely(data: Any, all_items: list):
     if isinstance(data, dict):
         all_items.append(data)
@@ -304,14 +278,6 @@ def extract_sms_details(item: Any) -> Optional[Dict[str, str]]:
 
 # ==================== MENÜLER ====================
 
-def get_join_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    buttons = [
-        [InlineKeyboardButton("💎 Kanala Katıl ve Doğrula", url="https://t.me/+3A7s7kVfaoMxYjM0")],
-        [InlineKeyboardButton("✨ Doğrulamayı Tamamla ✨", callback_data="check_join")]
-    ]
-    return InlineKeyboardMarkup(buttons)
-
-
 def get_main_keyboard(user_id: int) -> InlineKeyboardMarkup:
     keyboard = [
         [
@@ -354,47 +320,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referred_users_set.add(user_id)
                 user_referrers[user_id] = referrer_id
                 user_invite_counts[referrer_id] = user_invite_counts.get(referrer_id, 0) + 1
-                save_db() # Kaydet
-                
-                try:
-                    current_count = user_invite_counts[referrer_id]
-                    await context.bot.send_message(
-                        chat_id=referrer_id,
-                        text=f"🎉 <b>Yeni bir referans katıldı!</b>\n\n👤 Kullanıcı: {first_name}\n📊 Toplam Davet: <code>{current_count}/{REQUIRED_REFERRALS}</code>",
-                        parse_mode="HTML"
-                    )
-                except Exception:
-                    pass
+                save_db()
         except ValueError:
             pass
 
     save_db()
-
-    is_member = await check_channel_membership(user_id, context)
-    current_refs = user_invite_counts.get(user_id, 0)
-    has_enough_refs = current_refs >= REQUIRED_REFERRALS
-
-    if not is_member or not has_enough_refs:
-        user_joined_status[user_id] = False
-        save_db()
-        ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
-        
-        msg = (
-            f"⚡ <b>Erişim Bekleniyor, {first_name}!</b>\n\n"
-            f"1️⃣ Lütfen zorunlu kanallara katılın.\n"
-            f"2️⃣ Botu açabilmek için en az <b>{REQUIRED_REFERRALS}</b> kişi davet etmelisiniz.\n\n"
-            f"📊 <b>Mevcut Davetlerin:</b> <code>{current_refs}/{REQUIRED_REFERRALS}</code>\n"
-            f"🔗 <b>Senin Davet Linkin:</b>\n<code>{ref_link}</code>"
-        )
-        await update.message.reply_text(msg, parse_mode="HTML", reply_markup=get_join_keyboard(user_id))
-        return
-
     user_joined_status[user_id] = True
     save_db()
     
     welcome_msg = (
         f"👑 <b>HOŞ GELDİNİZ, VIP KRAL {first_name}</b> 👑\n\n"
-        f"💎 <i>Referans ve Güvenlik Sistemi Onaylandı. Panel Aktiftir.</i>\n\n"
+        f"💎 <i>Güvenlik Sistemi Onaylandı. Panel Aktiftir.</i>\n\n"
         f"👇 <b>Aşağıdaki menüden işlem seçin:</b>"
     )
     await update.message.reply_text(welcome_msg, parse_mode="HTML", reply_markup=get_main_keyboard(user_id))
@@ -409,43 +345,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in banned_users:
         try:
             await query.answer("⛔ Banlandınız!", show_alert=True)
-        except Exception:
-            pass
-        return
-
-    is_member = await check_channel_membership(user_id, context)
-    current_refs = user_invite_counts.get(user_id, 0)
-    has_enough_refs = current_refs >= REQUIRED_REFERRALS
-
-    if not is_member or not has_enough_refs:
-        user_joined_status[user_id] = False
-        
-        if user_id in user_referrers and is_member == False:
-            ref_owner = user_referrers[user_id]
-            if user_invite_counts.get(ref_owner, 0) > 0:
-                user_invite_counts[ref_owner] -= 1
-                del user_referrers[user_id]
-                save_db()
-                try:
-                    await context.bot.send_message(
-                        chat_id=ref_owner,
-                        text=f"⚠️ <b>Davet Ettiğin Kişi Kanaldan Ayrıldı!</b>\n\nDavet sayın bir azaldı. Güncel: <code>{user_invite_counts[ref_owner]}/{REQUIRED_REFERRALS}</code>",
-                        parse_mode="HTML"
-                    )
-                except Exception:
-                    pass
-
-        save_db()
-        ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
-        try:
-            await query.message.edit_text(
-                f"⚠️ <b>Erişim İhlali Tespit Edildi!</b>\n\n"
-                f"Zorunlu kanallardan ayrıldınız veya davet sınırının altına düştünüz.\n"
-                f"📊 <b>Mevcut Davetlerin:</b> <code>{current_refs}/{REQUIRED_REFERRALS}</code>\n\n"
-                f"🔗 <b>Davet Linkin:</b>\n<code>{ref_link}</code>",
-                parse_mode="HTML",
-                reply_markup=get_join_keyboard(user_id)
-            )
         except Exception:
             pass
         return
@@ -466,33 +365,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = query.data
 
-    if data == "check_join":
-        if is_member and has_enough_refs:
-            user_joined_status[user_id] = True
-            save_db()
-            try:
-                await query.message.edit_text(
-                    "✨ <b>Doğrulama Başarılı! VIP Paneli Yükleniyor...</b>",
-                    parse_mode="HTML",
-                    reply_markup=get_main_keyboard(user_id)
-                )
-            except Exception:
-                pass
-        else:
-            try:
-                await query.answer("❌ Kanallara katılmadınız veya yeterli davetiniz yok!", show_alert=True)
-            except Exception:
-                pass
-
-    elif data == "ref_link":
+    if data == "ref_link":
         ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
         current_refs = user_invite_counts.get(user_id, 0)
         ref_msg = (
             f"🔗 <b>REFERANS SİSTEMİ</b> 🔗\n\n"
             f"Botu aktif olarak kullanabilmek ve arkadaşlarınla paylaşmak için kişisel davet linkin:\n\n"
             f"<code>{ref_link}</code>\n\n"
-            f"📊 <b>İlerlemen:</b> <code>{current_refs} / {REQUIRED_REFERRALS}</code> kişi\n"
-            f"<i>(Not: Davet ettiğin kişi kanallardan çıkarsa daveti düşer.)</i>"
+            f"📊 <b>İlerlemen:</b> <code>{current_refs} / {REQUIRED_REFERRALS}</code> kişi"
         )
         try:
             await query.message.edit_text(
@@ -595,15 +475,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if assigned_num:
             user_active_numbers[user_id] = assigned_num
-            try:
-                await context.bot.send_message(
-                    chat_id=ADMIN_ID,
-                    text=f"📞 <b>BİR KULLANICI NUMARA ALDI!</b>\n\n👤 Kullanıcı: {user.first_name}\n🆔 ID: <code>{user_id}</code>\n📱 Platform: {target_platform}\n🌐 Ülke: {target_country}\n📞 Numara: <code>{assigned_num}</code>",
-                    parse_mode="HTML"
-                )
-            except Exception:
-                pass
-
             success_text = (
                 f"💎 <b>BAŞARIYLA EŞLEŞTİRİLDİ</b>\n\n"
                 f"📱 Platform: <code>{target_platform}</code>\n"
@@ -637,6 +508,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         admin_keyboard = [
             [InlineKeyboardButton("👥 Kullanıcı Listesi", callback_data="admin_user_list")],
+            [InlineKeyboardButton("📢 Duyuru Gönder", callback_data="admin_broadcast")],
             [InlineKeyboardButton("🔨 Kullanıcı Banla (/ban ID)", callback_data="admin_help_ban")],
             [InlineKeyboardButton("🔓 Ban Kaldır (/unban ID)", callback_data="admin_help_unban")],
             [InlineKeyboardButton("🏠 Ana Menüye Dön", callback_data="main_menu")]
@@ -661,6 +533,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 msg,
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Paneli", callback_data="admin_panel")]])
+            )
+        except Exception:
+            pass
+
+    elif data == "admin_broadcast":
+        if user_id != ADMIN_ID:
+            return
+        waiting_for_broadcast.add(user_id)
+        try:
+            await query.message.edit_text(
+                "📢 <b>DUYURU MODU</b>\n\nLütfen kullanıcılara göndermek istediğiniz duyuru mesajını yazıp gönderin:",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 İptal / Admin Paneli", callback_data="admin_panel")]])
             )
         except Exception:
             pass
@@ -703,6 +588,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except Exception:
             pass
+
+
+async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id == ADMIN_ID and user_id in waiting_for_broadcast:
+        waiting_for_broadcast.remove(user_id)
+        broadcast_text = update.message.text
+        
+        success_count = 0
+        fail_count = 0
+        
+        status_msg = await update.message.reply_text("📢 Duyuru gönderiliyor, lütfen bekleyin...")
+        
+        for uid in user_profiles.keys():
+            try:
+                await context.bot.send_message(chat_id=int(uid), text=broadcast_text, parse_mode="HTML")
+                success_count += 1
+                await asyncio.sleep(0.1)
+            except Exception:
+                fail_count += 1
+                
+        await status_msg.edit_text(
+            f"✅ <b>Duyuru Tamamlandı!</b>\n\n"
+            f"📤 Başarılı: <code>{success_count}</code>\n"
+            f"❌ Başarısız: <code>{fail_count}</code>",
+            parse_mode="HTML"
+        )
 
 
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -757,21 +669,11 @@ async def background_api_watcher(app: Application):
                 sms_hash = details["id"]
                 num = details["number"]
                 sms_content = details["sms"]
-                platform = details["platform"]
-                country = details["country"]
-                flag = details["flag"]
 
                 if sms_hash not in seen_sms_hashes:
                     seen_sms_hashes.add(sms_hash)
-                    try:
-                        await app.bot.send_message(
-                            chat_id=ADMIN_ID,
-                            text=f"📥 <b>YENİ KOD DÜŞTÜ!</b>\n🌐 {country} {flag}\n📱 {platform}\n📞 <code>{num}</code>\n💬 <code>{sms_content}</code>",
-                            parse_mode="HTML"
-                        )
-                    except Exception:
-                        pass
-
+                    
+                    # Kullanıcıya kod gelince iletme kısmı (Admine gitmez, sadece kullanıcıya gider)
                     for uid, assigned_num in list(user_active_numbers.items()):
                         if assigned_num == num:
                             try:
@@ -814,10 +716,10 @@ def main():
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("unban", unban_command))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
     print("🚀 Vantorium Team Kalıcı Veri Tabanlı OTP Botu Aktif!")
     
-    # Python 3.10+ ve Render uyumlu güvenli event loop yönetimi
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
