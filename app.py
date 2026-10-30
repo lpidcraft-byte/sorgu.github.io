@@ -40,7 +40,7 @@ FLOOD_DELAY = 1.5
 
 # Veritabanı Dosya Yolları
 DB_FILE = "user_db.json"
-CLONE_BOTS_FILE = "clone_bots.json"  # {"token": "...", "owner_id": 12345}
+CLONE_BOTS_FILE = "clone_bots.json"  # {"token": "...", "owner_id": 12345, "active": True}
 
 # Hafıza Yapıları
 seen_sms_hashes = set()
@@ -48,9 +48,12 @@ user_active_numbers: Dict[int, str] = {}
 user_cooldowns: Dict[int, float] = {}
 failed_request_counts: Dict[str, int] = {}
 waiting_for_broadcast: set = set()
-waiting_for_clone_token: set = set()
 
-running_clone_apps: List[Application] = []
+# Klonlama adımlarını takip etmek için geçici hafıza
+clone_process_state: Dict[int, Dict[str, Any]] = {}
+
+# Çalışan klon botların Application referansları {token: application}
+running_clone_apps: Dict[str, Application] = {}
 
 # ==================== KALICI VERİ YÖNETİMİ (JSON) ====================
 
@@ -94,15 +97,41 @@ def load_clone_bots() -> List[Dict[str, Any]]:
             pass
     return []
 
-def save_clone_bot_data(token: str, owner_id: int):
+def save_clone_bot_data(token: str, owner_id: int, active: bool = True):
     bots = load_clone_bots()
-    if not any(b["token"] == token for b in bots):
-        bots.append({"token": token, "owner_id": owner_id})
-        try:
-            with open(CLONE_BOTS_FILE, "w", encoding="utf-8") as f:
-                json.dump(bots, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            logger.error(f"Klon bot kayıt hatası: {e}")
+    for b in bots:
+        if b["token"] == token:
+            b["owner_id"] = owner_id
+            b["active"] = active
+            break
+    else:
+        bots.append({"token": token, "owner_id": owner_id, "active": active})
+    try:
+        with open(CLONE_BOTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(bots, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"Klon bot kayıt hatası: {e}")
+
+def update_clone_bot_status(token: str, active: bool):
+    bots = load_clone_bots()
+    for b in bots:
+        if b["token"] == token:
+            b["active"] = active
+            break
+    try:
+        with open(CLONE_BOTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(bots, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"Klon bot durum güncelleme hatası: {e}")
+
+def remove_clone_bot_data(token: str):
+    bots = load_clone_bots()
+    bots = [b for b in bots if b["token"] != token]
+    try:
+        with open(CLONE_BOTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(bots, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"Klon bot silme hatası: {e}")
 
 # Verileri yükle
 db_data = load_db()
@@ -179,7 +208,7 @@ COUNTRY_DATA = {
     "94": ("SRI LANKA", "🇱🇰"), "95": ("MYANMAR", "🇲🇲"), "98": ("IRAN", "🇮🇷"), "212": ("MOROCCO", "🇲🇦"),
     "213": ("ALGERIA", "🇩🇿"), "216": ("TUNISIA", "🇹🇳"), "218": ("LIBYA", "🇱🇾"), "220": ("GAMBIA", "🇬🇲"),
     "221": ("SENEGAL", "🇸🇳"), "223": ("MALI", "🇲🇱"), "224": ("GUINEA", "🇬🇳"), "225": ("IVORY COAST", "🇨🇮"),
-    "226": ("BURKINA FASO", "🇧🇫"), "227": ("NIGER", "🇳🇪"), "228": ("TOGO", "🇹🇬"), "229": ("BENIN", "🇧🇯"),
+    "226": ("BURKINA FASO", "🇧🇫"), "227": ("NIGER", "🇳🇪"), "228": ("TOGO", "TOGO"), "229": ("BENIN", "🇧🇯"),
     "230": ("MAURITIUS", "🇲🇺"), "231": ("LIBERIA", "🇱🇷"), "232": ("SIERRA LEONE", "🇸🇱"), "233": ("GHANA", "🇬🇭"),
     "234": ("NIGERIA", "🇳🇬"), "235": ("CHAD", "🇹🇩"), "236": ("CENTRAL AFRICAN REP", "🇨🇫"), "237": ("CAMEROON", "🇨🇲"),
     "238": ("CAPE VERDE", "🇨🇻"), "239": ("SAO TOME", "🇸🇹"), "240": ("EQUATORIAL GUINEA", "🇬🇶"), "241": ("GABON", "🇬🇦"),
@@ -197,7 +226,7 @@ COUNTRY_DATA = {
     "385": ("CROATIA", "🇭🇷"), "386": ("SLOVENIA", "🇸🇮"), "387": ("BOSNIA", "🇧🇦"), "389": ("NORTH MACEDONIA", "🇲🇰"),
     "420": ("CZECH REPUBLIC", "🇨🇿"), "421": ("SLOVAKIA", "🇸🇰"), "502": ("GUATEMALA", "🇬🇹"), "503": ("EL SALVADOR", "🇸🇻"),
     "504": ("HONDURAS", "🇭🇳"), "505": ("NICARAGUA", "🇳🇮"), "506": ("COSTA RICA", "🇨🇷"), "507": ("PANAMA", "🇵🇦"),
-    "509": ("HAITI", "🇭🇹"), "591": ("BOLIVIA", "🇧🇴"), "593": ("ECUADOR", "EC"), "595": ("PARAGUAY", "🇵🇾"),
+    "509": ("HAITI", "🇭🇹"), "591": ("BOLIVIA", "🇧🇴"), "593": ("ECUADOR", "🇪🇨"), "595": ("PARAGUAY", "🇵🇾"),
     "598": ("URUGUAY", "🇺🇾"), "852": ("HONG KONG", "🇭🇰"), "853": ("MACAU", "🇲🇴"), "855": ("CAMBODIA", "🇰🇭"),
     "856": ("LAOS", "🇱🇦"), "880": ("BANGLADESH", "🇧🇩"), "886": ("TAIWAN", "🇹🇼"), "960": ("MALDIVES", "🇲🇻"),
     "961": ("LEBANON", "🇱🇧"), "962": ("JORDAN", "🇯🇴"), "963": ("SYRIA", "🇸🇾"), "964": ("IRAQ", "🇮🇶"),
@@ -313,7 +342,7 @@ def extract_sms_details(item: Any) -> Optional[Dict[str, str]]:
     return None
 
 
-# ==================== KONTROL & YETKİ KONTROLÜ ====================
+# ==================== YETKİ KONTROLÜ ====================
 def is_admin(user_id: int) -> bool:
     if user_id == MAIN_ADMIN_ID:
         return True
@@ -476,7 +505,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     unique_entries.append(details)
 
         if not unique_entries:
-            # Bulunamazsa herhangi genel hatları listele
             for item in items:
                 details = extract_sms_details(item)
                 if details and details["country"] not in seen_countries:
@@ -567,7 +595,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_keyboard = [
             [InlineKeyboardButton("👥 Kullanıcı Listesi", callback_data="admin_user_list")],
             [InlineKeyboardButton("📢 Duyuru Gönder", callback_data="admin_broadcast")],
-            [InlineKeyboardButton(f"🤖 Bot Klonla (Aktif: {clone_count})", callback_data="admin_clone_bot")],
+            [InlineKeyboardButton(f"🤖 Bot Klonla", callback_data="admin_clone_bot"), InlineKeyboardButton(f"📋 Klon Bot Listesi", callback_data="admin_clone_list")],
             [InlineKeyboardButton("🔨 Kullanıcı Banla (/ban ID)", callback_data="admin_help_ban")],
             [InlineKeyboardButton("🔓 Ban Kaldır (/unban ID)", callback_data="admin_help_unban")],
             [InlineKeyboardButton("🏠 Ana Menüye Dön", callback_data="main_menu")]
@@ -602,7 +630,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         waiting_for_broadcast.add(user_id)
         try:
             await query.message.edit_text(
-                "📢 <b>DUYURU MODU</b>\n\nLütfen tüm kullanıcılara göndermek istediğiniz duyuru mesajını yazıp gönderin:\n<i>(Eğer ana admin iseniz duyurunuz tüm klon botlardaki kullanıcılara da ulaşır.)</i>",
+                "📢 <b>DUYURU MODU</b>\n\nLütfen tüm kullanıcılara göndermek istediğiniz duyuru mesajını yazıp gönderin:",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 İptal / Admin Paneli", callback_data="admin_panel")]])
             )
@@ -612,17 +640,104 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "admin_clone_bot":
         if not is_admin(user_id):
             return
-        waiting_for_clone_token.add(user_id)
+        clone_process_state[user_id] = {"token": None, "step": "waiting_for_token"}
         try:
             await query.message.edit_text(
-                "🤖 <b>BOT KLONLAMA SİSTEMİ</b>\n\n"
-                "Lütfen @BotFather'dan aldığınız **yeni botun tokenini** buraya mesaj olarak gönderin:\n\n"
-                "<i>(Not: Bu botu klonlayan kişi olarak yeni botun yetkilisi/sahibi olacaksınız.)</i>",
+                "🤖 <b>BOT KLONLAMA SİSTEMİ (1/2)</b>\n\n"
+                "Lütfen @BotFather'dan aldığınız **yeni botun tokenini** buraya mesaj olarak gönderin:",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 İptal / Admin Paneli", callback_data="admin_panel")]])
             )
         except Exception:
             pass
+
+    elif data == "admin_clone_list":
+        if not is_admin(user_id):
+            return
+        bots = load_clone_bots()
+        if not bots:
+            kb = [[InlineKeyboardButton("🔙 Admin Paneli", callback_data="admin_panel")]]
+            await query.message.edit_text("🤖 <b>Kayıtlı klon bot bulunmuyor.</b>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb))
+            return
+
+        kb = []
+        text = "🤖 <b>KLON BOT YÖNETİM LİSTESİ</b>\n\n"
+        for idx, b in enumerate(bots, 1):
+            t_short = b["token"][:10] + "..."
+            status = "🟢 Aktif" if b.get("active", True) else "🔴 Durduruldu"
+            text += f"{idx}️⃣ Token: <code>{t_short}</code>\n   👤 Sahip ID: <code>{b['owner_id']}</code> | Durum: {status}\n\n"
+            
+            # İşlem butonları
+            if b.get("active", True):
+                kb.append([InlineKeyboardButton(f"🔴 Durdur #{idx}", callback_data=f"clone_stop_{b['token']}")])
+            else:
+                kb.append([InlineKeyboardButton(f"🟢 Başlat #{idx}", callback_data=f"clone_start_{b['token']}")])
+            kb.append([InlineKeyboardButton(f"🗑️ Sil #{idx}", callback_data=f"clone_del_{b['token']}")])
+
+        kb.append([InlineKeyboardButton("🔙 Admin Paneli", callback_data="admin_panel")])
+        try:
+            await query.message.edit_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb))
+        except Exception:
+            pass
+
+    elif data.startswith("clone_stop_"):
+        if not is_admin(user_id):
+            return
+        token_to_stop = data.replace("clone_stop_", "")
+        update_clone_bot_status(token_to_stop, active=False)
+        if token_to_stop in running_clone_apps:
+            try:
+                app_to_stop = running_clone_apps[token_to_stop]
+                await app_to_stop.stop()
+                await app_to_stop.shutdown()
+                del running_clone_apps[token_to_stop]
+            except Exception:
+                pass
+        try:
+            await query.answer("🛑 Klon bot durduruldu!", show_alert=True)
+        except Exception:
+            pass
+        # Listeyi yenile
+        await button_handler(update, context)
+
+    elif data.startswith("clone_start_"):
+        if not is_admin(user_id):
+            return
+        token_to_start = data.replace("clone_start_", "")
+        update_clone_bot_status(token_to_start, active=True)
+        
+        bots = load_clone_bots()
+        owner_id = MAIN_ADMIN_ID
+        for b in bots:
+            if b["token"] == token_to_start:
+                owner_id = b["owner_id"]
+                break
+        
+        asyncio.create_task(start_clone_bot(token_to_start, owner_id=owner_id))
+        try:
+            await query.answer("🚀 Klon bot başlatıldı!", show_alert=True)
+        except Exception:
+            pass
+        await button_handler(update, context)
+
+    elif data.startswith("clone_del_"):
+        if not is_admin(user_id):
+            return
+        token_to_del = data.replace("clone_del_", "")
+        if token_to_del in running_clone_apps:
+            try:
+                app_to_del = running_clone_apps[token_to_del]
+                await app_to_del.stop()
+                await app_to_del.shutdown()
+                del running_clone_apps[token_to_del]
+            except Exception:
+                pass
+        remove_clone_bot_data(token_to_del)
+        try:
+            await query.answer("🗑️ Klon bot silindi!", show_alert=True)
+        except Exception:
+            pass
+        await button_handler(update, context)
 
     elif data in ["admin_help_ban", "admin_help_unban"]:
         if not is_admin(user_id):
@@ -643,7 +758,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🟢 Aktif API Sayısı: <code>{len(APIS_CONFIG)}</code>[span_0](start_span)[span_0](end_span)\n"
             f"👥 Toplam Kullanıcı: <code>{len(user_profiles)}</code>[span_1](start_span)[span_1](end_span)\n"
             f"📈 Anlık SMS Havuzu: <code>{len(items)}</code>[span_2](start_span)[span_2](end_span)\n"
-            f"🤖 Aktif Klon Botlar: <code>{len(load_clone_bots())}</code>"
+            f"🤖 Aktif Klon Botlar: <code>{len(running_clone_apps)}</code>"
         )
         try:
             await query.message.edit_text(
@@ -680,8 +795,6 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         
         status_msg = await update.message.reply_text("📢 Duyuru gönderiliyor, lütfen bekleyin...")
         
-        # Eğer bu duyuruyu ANA ADMIN yaptıysa, tüm sistemdeki (ana bot + tüm klon botlar) kullanıcılara gider.
-        # Eğer bir KLON BOT ADMINİ yaptıysa, sadece o botun veritabanındaki kullanıcılara gider.
         target_users = user_profiles.keys()
         
         for uid in target_users:
@@ -699,19 +812,43 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             parse_mode="HTML"
         )
 
-    # Yeni Bot Tokeni Ekleme & Klonlama İşlemi
-    elif user_id in waiting_for_clone_token:
-        waiting_for_clone_token.remove(user_id)
-        new_token = update.message.text.strip()
-        
-        if ":" not in new_token or len(new_token) < 20:
+    # Adım 1: Klon Bot Token Alımı
+    elif user_id in clone_process_state and clone_process_state[user_id]["step"] == "waiting_for_token":
+        token_input = update.message.text.strip()
+        if ":" not in token_input or len(token_input) < 20:
             await update.message.reply_text("❌ Geçersiz bot token formatı! Lütfen @BotFather'dan aldığınız doğru tokeni gönderin.")
             return
 
-        save_clone_bot_data(new_token, owner_id=user_id)
-        await update.message.reply_text(f"🚀 <b>Yeni bot başarıyla klonlandı!</b>\n\nSahibi siz oldunuz. Bot arka planda başlatılıyor...", parse_mode="HTML")
+        clone_process_state[user_id]["token"] = token_input
+        clone_process_state[user_id]["step"] = "waiting_for_owner_id"
         
-        asyncio.create_task(start_clone_bot(new_token, owner_id=user_id))
+        await update.message.reply_text(
+            "🤖 <b>BOT KLONLAMA SİSTEMİ (2/2)</b>\n\n"
+            "Token başarıyla alındı! Şimdi bu botun sahibi (owner) olacak kişinin **Telegram Kullanıcı ID'sini** (rakamsal ID) yazın:",
+            parse_mode="HTML"
+        )
+
+    # Adım 2: Klon Bot Owner ID Alımı ve Kaydı
+    elif user_id in clone_process_state and clone_process_state[user_id]["step"] == "waiting_for_owner_id":
+        owner_id_input = update.message.text.strip()
+        try:
+            owner_id = int(owner_id_input)
+        except ValueError:
+            await update.message.reply_text("❌ Geçersiz ID! Lütfen sadece sayısal bir Telegram ID girin.")
+            return
+
+        token = clone_process_state[user_id]["token"]
+        del clone_process_state[user_id]
+
+        save_clone_bot_data(token, owner_id=owner_id, active=True)
+        await update.message.reply_text(
+            f"🚀 <b>Yeni bot başarıyla klonlandı ve kaydedildi!</b>\n\n"
+            f"👤 Sahip (Owner) ID: <code>{owner_id}</code>\n"
+            f"Bot arka planda başlatılıyor...",
+            parse_mode="HTML"
+        )
+        
+        asyncio.create_task(start_clone_bot(token, owner_id=owner_id))
 
 
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -801,7 +938,7 @@ async def start_clone_bot(token: str, owner_id: int):
         clone_app.add_handler(CallbackQueryHandler(button_handler))
         clone_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
-        running_clone_apps.append(clone_app)
+        running_clone_apps[token] = clone_app
         logger.info(f"🤖 Klon bot başarıyla başlatıldı (Sahip ID: {owner_id})")
         
         await clone_app.initialize()
@@ -848,10 +985,11 @@ def main():
     # Render port sunucusunu başlat
     loop.create_task(start_web_server())
 
-    # Kayıtlı eski klon botları da otomatik başlat
+    # Kayıtlı ve aktif olan klon botları otomatik başlat
     clone_bots = load_clone_bots()
     for b in clone_bots:
-        loop.create_task(start_clone_bot(b["token"], b["owner_id"]))
+        if b.get("active", True):
+            loop.create_task(start_clone_bot(b["token"], b["owner_id"]))
         
     app.run_polling()
 
