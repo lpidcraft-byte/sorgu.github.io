@@ -40,7 +40,7 @@ FLOOD_DELAY = 1.5
 
 # Veritabanı Dosya Yolları
 DB_FILE = "user_db.json"
-CLONE_BOTS_FILE = "clone_bots.json"  # {"token": "...", "owner_id": 12345, "active": True}
+CLONE_BOTS_FILE = "clone_bots.json"
 
 # Hafıza Yapıları
 seen_sms_hashes = set()
@@ -49,10 +49,7 @@ user_cooldowns: Dict[int, float] = {}
 failed_request_counts: Dict[str, int] = {}
 waiting_for_broadcast: set = set()
 
-# Klonlama adımlarını takip etmek için geçici hafıza
 clone_process_state: Dict[int, Dict[str, Any]] = {}
-
-# Çalışan klon botların Application referansları {token: application}
 running_clone_apps: Dict[str, Application] = {}
 
 # ==================== KALICI VERİ YÖNETİMİ (JSON) ====================
@@ -145,55 +142,16 @@ user_joined_status: Dict[int, bool] = {int(k): v for k, v in db_data.get("user_j
 
 # ==================== API LİSTESİ ====================
 APIS_CONFIG = [
-    {
-        "name": "NumberPanel Lifetime (Özel)",
-        "url": "https://numberpanel.tech/api/lifetime"
-    },
-    {
-        "name": "Container IP API (Özel)",
-        "url": "http://194.238.28.236:8000/container"
-    },
-    {
-        "name": "Number Panel",
-        "url": "http://147.135.212.197/crapi/st/viewstats",
-        "auth": "R1ZVR0hBUzR1Z1FBQVGZiVqAd1OEd2NmW4qIRHyDi0NZdWJzYFOLeA=="
-    },
-    {
-        "name": "Konekta API",
-        "url": "http://51.77.216.195/crapi/konek/viewstats",
-        "auth": "EL API"
-    },
-    {
-        "name": "TimeSMS API 1",
-        "url": "http://147.135.212.197/crapi/time/viewstats",
-        "auth": "Qk9USDRSQkpqh2Blc4l3dWBtYXVEZ5djSW9lhlNfd1t0b2pneW90"
-    },
-    {
-        "name": "TimeSMS API 2",
-        "url": "http://147.135.212.197/crapi/time/viewstats",
-        "auth": "Qk9XRzRSQkRjhYOLiniKWoeCalOJUIR3WnV3X4WHllljg2iKfmhm"
-    },
-    {
-        "name": "Hadi SMS 1",
-        "url": "http://147.135.212.197/crapi/had/viewstats",
-        "auth": "SVVTQjRSQmRUcVhpZnSCZIeQlUh2hHiDSI5haHJvkHKCiZJVVHWY"
-    },
-    {
-        "name": "Hadi SMS 2",
-        "url": "http://147.135.212.197/crapi/had/viewstats",
-        "auth": "SlFWRDRSQmlmTm5SW2qPY4ZOVneDa4hiUpSXQV-JboZog4NTiI-K"
-    },
-    {
-        "name": "iVASMS",
-        "url": "https://maroon-wombat-183778.hostingersite.com/apiivasms/api.php",
-        "auth": "sk_4b5ff02b42635e4c4891bd5d2f8fcb7aff2f7af6d5daecf8498ba91092dfcbb6"
-    },
-    {
-        "name": "Roxy SMS",
-        "url": "http://www.roxysms.net",
-        "user": "nooorwahba",
-        "pass": "nooreldeingg123@"
-    }
+    {"name": "NumberPanel Lifetime (Özel)", "url": "https://numberpanel.tech/api/lifetime"},
+    {"name": "Container IP API (Özel)", "url": "http://194.238.28.236:8000/container"},
+    {"name": "Number Panel", "url": "http://147.135.212.197/crapi/st/viewstats", "auth": "R1ZVR0hBUzR1Z1FBQVGZiVqAd1OEd2NmW4qIRHyDi0NZdWJzYFOLeA=="},
+    {"name": "Konekta API", "url": "http://51.77.216.195/crapi/konek/viewstats", "auth": "EL API"},
+    {"name": "TimeSMS API 1", "url": "http://147.135.212.197/crapi/time/viewstats", "auth": "Qk9USDRSQkpqh2Blc4l3dWBtYXVEZ5djSW9lhlNfd1t0b2pneW90"},
+    {"name": "TimeSMS API 2", "url": "http://147.135.212.197/crapi/time/viewstats", "auth": "Qk9XRzRSQkRjhYOLiniKWoeCalOJUIR3WnV3X4WHllljg2iKfmhm"},
+    {"name": "Hadi SMS 1", "url": "http://147.135.212.197/crapi/had/viewstats", "auth": "SVVTQjRSQmRUcVhpZnSCZIeQlUh2hHiDSI5haHJvkHKCiZJVVHWY"},
+    {"name": "Hadi SMS 2", "url": "http://147.135.212.197/crapi/had/viewstats", "auth": "SlFWRDRSQmlmTm5SW2qPY4ZOVneDa4hiUpSXQV-JboZog4NTiI-K"},
+    {"name": "iVASMS", "url": "https://maroon-wombat-183778.hostingersite.com/apiivasms/api.php", "auth": "sk_4b5ff02b42635e4c4891bd5d2f8fcb7aff2f7af6d5daecf8498ba91092dfcbb6"},
+    {"name": "Roxy SMS", "url": "http://www.roxysms.net", "user": "nooorwahba", "pass": "nooreldeingg123@"}
 ]
 
 
@@ -208,7 +166,7 @@ COUNTRY_DATA = {
     "94": ("SRI LANKA", "🇱🇰"), "95": ("MYANMAR", "🇲🇲"), "98": ("IRAN", "🇮🇷"), "212": ("MOROCCO", "🇲🇦"),
     "213": ("ALGERIA", "🇩🇿"), "216": ("TUNISIA", "🇹🇳"), "218": ("LIBYA", "🇱🇾"), "220": ("GAMBIA", "🇬🇲"),
     "221": ("SENEGAL", "🇸🇳"), "223": ("MALI", "🇲🇱"), "224": ("GUINEA", "🇬🇳"), "225": ("IVORY COAST", "🇨🇮"),
-    "226": ("BURKINA FASO", "🇧🇫"), "227": ("NIGER", "🇳🇪"), "228": ("TOGO", "TOGO"), "229": ("BENIN", "🇧🇯"),
+    "226": ("BURKINA FASO", "🇧🇫"), "227": ("NIGER", "🇳🇪"), "228": ("TOGO", "🇹🇬"), "229": ("BENIN", "🇧🇯"),
     "230": ("MAURITIUS", "🇲🇺"), "231": ("LIBERIA", "🇱🇷"), "232": ("SIERRA LEONE", "🇸🇱"), "233": ("GHANA", "🇬🇭"),
     "234": ("NIGERIA", "🇳🇬"), "235": ("CHAD", "🇹🇩"), "236": ("CENTRAL AFRICAN REP", "🇨🇫"), "237": ("CAMEROON", "🇨🇲"),
     "238": ("CAPE VERDE", "🇨🇻"), "239": ("SAO TOME", "🇸🇹"), "240": ("EQUATORIAL GUINEA", "🇬🇶"), "241": ("GABON", "🇬🇦"),
@@ -352,12 +310,27 @@ def is_admin(user_id: int) -> bool:
     return False
 
 
-# ==================== MENÜLER ====================
+# ==================== ÖZEL PREMIUM EMOJİ SABİTLERİ ====================
+E_CROWN = '<tg-emoji emoji-id="5877536313623711363">👑</tg-emoji>'
+E_DIAMOND = '<tg-emoji emoji-id="5807868868886009920">💎</tg-emoji>'
+E_ROCKET = '<tg-emoji emoji-id="5920052658743283381">🚀</tg-emoji>'
+E_LINK = '<tg-emoji emoji-id="5258226313285607065">🔗</tg-emoji>'
+E_CHART = '<tg-emoji emoji-id="5807465992363710697">📊</tg-emoji>'
+E_SHIELD = '<tg-emoji emoji-id="5874948844935974490">🛡️</tg-emoji>'
+E_ROBOT = '<tg-emoji emoji-id="5843553939672274145">🤖</tg-emoji>'
+E_BAN = '<tg-emoji emoji-id="5258477770735885832">⛔</tg-emoji>'
+E_UNBAN = '<tg-emoji emoji-id="5875206779196935950">🔓</tg-emoji>'
+E_HOME = '<tg-emoji emoji-id="5258336354642697821">🏠</tg-emoji>'
+E_BACK = '<tg-emoji emoji-id="5260652420052032852">🔙</tg-emoji>'
+E_SEARCH = '<tg-emoji emoji-id="5258474669769497337">🔍</tg-emoji>'
+E_WARNING = '<tg-emoji emoji-id="5258503720928288433">⚠️</tg-emoji>'
+E_CHECK = '<tg-emoji emoji-id="5258420634785947640">✅</tg-emoji>'
+
 
 def get_main_keyboard(user_id: int) -> InlineKeyboardMarkup:
     keyboard = [
         [
-            InlineKeyboardButton("🚀 Genişletilmiş Numara Al", callback_data="select_platform"),
+            InlineKeyboardButton("🚀 Numara Al", callback_data="select_platform"),
             InlineKeyboardButton("🔗 Referans Linkim", callback_data="ref_link")
         ],
         [
@@ -378,7 +351,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = user.username or "Yok"
 
     if user_id in banned_users:
-        await update.message.reply_text("⛔ <b>Bu sistemden banlandınız!</b>", parse_mode="HTML")
+        await update.message.reply_text(f"{E_BAN} <b>Bu sistemden banlandınız!</b>", parse_mode="HTML")
         return
 
     user_profiles[user_id] = {
@@ -387,7 +360,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "username": username
     }
 
-    # Referans İşleme
     args = context.args
     if args and args[0].startswith("ref_"):
         try:
@@ -405,8 +377,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_db()
     
     welcome_msg = (
-        f"👑 <b>HOŞ GELDİNİZ, VIP KRAL {first_name}</b> 👑\n\n"
-        f"💎 <i>Genişletilmiş Çoklu Platform ve Güvenlik Altyapısı Aktiftir.</i>\n\n"
+        f"{E_CROWN} <b>HOŞ GELDİNİZ, VIP KRAL {first_name}</b> {E_CROWN}\n\n"
+        f"{E_DIAMOND} <i>Genişletilmiş Çoklu Platform ve Güvenlik Altyapısı Aktiftir.</i>\n\n"
         f"👇 <b>Aşağıdaki menüden işlem seçin:</b>"
     )
     await update.message.reply_text(welcome_msg, parse_mode="HTML", reply_markup=get_main_keyboard(user_id))
@@ -420,7 +392,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id in banned_users:
         try:
-            await query.answer("⛔ Banlandınız!", show_alert=True)
+            await query.answer("Banlandınız!", show_alert=True)
         except Exception:
             pass
         return
@@ -428,7 +400,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in user_cooldowns:
         if current_time - user_cooldowns[user_id] < FLOOD_DELAY:
             try:
-                await query.answer("⚠️ Çok hızlı işlem yapıyorsunuz!", show_alert=True)
+                await query.answer("Çok hızlı işlem yapıyorsunuz!", show_alert=True)
             except Exception:
                 pass
             return
@@ -445,10 +417,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_link = f"https://t.me/{MAIN_BOT_USERNAME}?start=ref_{user_id}"
         current_refs = user_invite_counts.get(user_id, 0)
         ref_msg = (
-            f"🔗 <b>REFERANS SİSTEMİ</b> 🔗\n\n"
+            f"{E_LINK} <b>REFERANS SİSTEMİ</b> {E_LINK}\n\n"
             f"Botu aktif olarak kullanabilmek ve arkadaşlarınla paylaşmak için kişisel davet linkin:\n\n"
             f"<code>{ref_link}</code>\n\n"
-            f"📊 <b>İlerlemen:</b> <code>{current_refs} / {REQUIRED_REFERRALS}</code> kişi"
+            f"{E_CHART} <b>İlerlemen:</b> <code>{current_refs} / {REQUIRED_REFERRALS}</code> kişi"
         )
         try:
             await query.message.edit_text(
@@ -469,7 +441,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         try:
             await query.message.edit_text(
-                "🎯 <b>GENİŞLETİLMİŞ PLATFORM SEÇİNİZ</b>\n\n<i>Lütfen numarasını almak istediğiniz servisi seçin:</i>",
+                f"{E_ROCKET} <b>GENİŞLETİLMİŞ PLATFORM SEÇİNİZ</b>\n\n<i>Lütfen numarasını almak istediğiniz servisi seçin:</i>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
@@ -479,7 +451,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("plat_"):
         target_platform = data.replace("plat_", "")
         try:
-            await query.message.edit_text(f"🔍 <i>{target_platform} hatları taranıyor...</i>", parse_mode="HTML")
+            await query.message.edit_text(f"{E_SEARCH} <i>{target_platform} hatları taranıyor...</i>", parse_mode="HTML")
         except Exception:
             pass
         
@@ -487,7 +459,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not items:
             try:
                 await query.message.edit_text(
-                    "❌ <b>Aktif hat bulunamadı.</b>",
+                    f"{E_BAN} <b>Aktif hat bulunamadı.</b>",
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Geri", callback_data="select_platform")]])
                 )
@@ -514,7 +486,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not unique_entries:
             try:
                 await query.message.edit_text(
-                    f"❌ <b>{target_platform} için uygun kategori bulunamadı.</b>",
+                    f"{E_BAN} <b>{target_platform} için uygun kategori bulunamadı.</b>",
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Geri", callback_data="select_platform")]])
                 )
@@ -561,7 +533,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if assigned_num:
             user_active_numbers[user_id] = assigned_num
             success_text = (
-                f"💎 <b>BAŞARIYLA EŞLEŞTİRİLDİ</b>\n\n"
+                f"{E_DIAMOND} <b>BAŞARIYLA EŞLEŞTİRİLDİ</b>\n\n"
                 f"📱 Platform: <code>{target_platform}</code>\n"
                 f"🌐 Ülke: <code>{target_country}</code>\n"
                 f"📞 Atanan Numara: <code>{assigned_num}</code>\n\n"
@@ -581,7 +553,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             try:
                 await query.message.edit_text(
-                    "❌ <b>Bu kategoriye ait aktif numara yok.</b>",
+                    f"{E_BAN} <b>Bu kategoriye ait aktif numara yok.</b>",
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Ana Menü", callback_data="main_menu")]])
                 )
@@ -602,7 +574,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         try:
             await query.message.edit_text(
-                f"👑 <b>GELİŞMİŞ ADMIN PANELİ</b>\n\n📊 Toplam Kullanıcı: <code>{len(user_profiles)}</code>\n🤖 Klon Bot Sayısı: <code>{clone_count}</code>",
+                f"{E_CROWN} <b>GELİŞMİŞ ADMIN PANELİ</b>\n\n{E_CHART} Toplam Kullanıcı: <code>{len(user_profiles)}</code>\n{E_ROBOT} Klon Bot Sayısı: <code>{clone_count}</code>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(admin_keyboard)
             )
@@ -630,7 +602,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         waiting_for_broadcast.add(user_id)
         try:
             await query.message.edit_text(
-                "📢 <b>DUYURU MODU</b>\n\nLütfen tüm kullanıcılara göndermek istediğiniz duyuru mesajını yazıp gönderin:",
+                f"📢 <b>DUYURU MODU</b>\n\nLütfen tüm kullanıcılara göndermek istediğiniz duyuru mesajını yazıp gönderin:",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 İptal / Admin Paneli", callback_data="admin_panel")]])
             )
@@ -643,7 +615,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         clone_process_state[user_id] = {"token": None, "step": "waiting_for_token"}
         try:
             await query.message.edit_text(
-                "🤖 <b>BOT KLONLAMA SİSTEMİ (1/2)</b>\n\n"
+                f"{E_ROBOT} <b>BOT KLONLAMA SİSTEMİ (1/2)</b>\n\n"
                 "Lütfen @BotFather'dan aldığınız **yeni botun tokenini** buraya mesaj olarak gönderin:",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 İptal / Admin Paneli", callback_data="admin_panel")]])
@@ -657,17 +629,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bots = load_clone_bots()
         if not bots:
             kb = [[InlineKeyboardButton("🔙 Admin Paneli", callback_data="admin_panel")]]
-            await query.message.edit_text("🤖 <b>Kayıtlı klon bot bulunmuyor.</b>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb))
+            await query.message.edit_text(f"{E_ROBOT} <b>Kayıtlı klon bot bulunmuyor.</b>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb))
             return
 
         kb = []
-        text = "🤖 <b>KLON BOT YÖNETİM LİSTESİ</b>\n\n"
+        text = f"{E_ROBOT} <b>KLON BOT YÖNETİM LİSTESİ</b>\n\n"
         for idx, b in enumerate(bots, 1):
             t_short = b["token"][:10] + "..."
-            status = "🟢 Aktif" if b.get("active", True) else "🔴 Durduruldu"
+            status = f"{E_CHECK} Aktif" if b.get("active", True) else f"{E_BAN} Durduruldu"
             text += f"{idx}️⃣ Token: <code>{t_short}</code>\n   👤 Sahip ID: <code>{b['owner_id']}</code> | Durum: {status}\n\n"
             
-            # İşlem butonları
             if b.get("active", True):
                 kb.append([InlineKeyboardButton(f"🔴 Durdur #{idx}", callback_data=f"clone_stop_{b['token']}")])
             else:
@@ -694,10 +665,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
         try:
-            await query.answer("🛑 Klon bot durduruldu!", show_alert=True)
+            await query.answer("Klon bot durduruldu!", show_alert=True)
         except Exception:
             pass
-        # Listeyi yenile
         await button_handler(update, context)
 
     elif data.startswith("clone_start_"):
@@ -715,7 +685,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         asyncio.create_task(start_clone_bot(token_to_start, owner_id=owner_id))
         try:
-            await query.answer("🚀 Klon bot başlatıldı!", show_alert=True)
+            await query.answer("Klon bot başlatıldı!", show_alert=True)
         except Exception:
             pass
         await button_handler(update, context)
@@ -734,7 +704,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
         remove_clone_bot_data(token_to_del)
         try:
-            await query.answer("🗑️ Klon bot silindi!", show_alert=True)
+            await query.answer("Klon bot silindi!", show_alert=True)
         except Exception:
             pass
         await button_handler(update, context)
@@ -744,7 +714,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         try:
             await query.message.edit_text(
-                "💡 <b>Komutlar:</b>\n/ban ID\n/unban ID",
+                f"{E_WARNING} <b>Komutlar:</b>\n/ban ID\n/unban ID",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Admin Paneli", callback_data="admin_panel")]])
             )
@@ -754,11 +724,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "system_status":
         items = await fetch_api_data()
         status_text = (
-            f"📊 <b>GELİŞMİŞ SİSTEM DURUMU</b>\n\n"
-            f"🟢 Aktif API Sayısı: <code>{len(APIS_CONFIG)}</code>[span_0](start_span)[span_0](end_span)\n"
-            f"👥 Toplam Kullanıcı: <code>{len(user_profiles)}</code>[span_1](start_span)[span_1](end_span)\n"
-            f"📈 Anlık SMS Havuzu: <code>{len(items)}</code>[span_2](start_span)[span_2](end_span)\n"
-            f"🤖 Aktif Klon Botlar: <code>{len(running_clone_apps)}</code>"
+            f"{E_CHART} <b>GELİŞMİŞ SİSTEM DURUMU</b>\n\n"
+            f"{E_CHECK} Aktif API Sayısı: <code>{len(APIS_CONFIG)}</code>\n"
+            f"👥 Toplam Kullanıcı: <code>{len(user_profiles)}</code>\n"
+            f"📈 Anlık SMS Havuzu: <code>{len(items)}</code>\n"
+            f"{E_ROBOT} Aktif Klon Botlar: <code>{len(running_clone_apps)}</code>"
         )
         try:
             await query.message.edit_text(
@@ -772,7 +742,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "main_menu":
         try:
             await query.message.edit_text(
-                "👑 <b>Kontrol Paneli:</b>",
+                f"{E_CROWN} <b>Kontrol Paneli:</b>",
                 parse_mode="HTML",
                 reply_markup=get_main_keyboard(user_id)
             )
@@ -785,7 +755,6 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin(user_id):
         return
 
-    # Duyuru Gönderme İşlemi
     if user_id in waiting_for_broadcast:
         waiting_for_broadcast.remove(user_id)
         broadcast_text = update.message.text
@@ -793,7 +762,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         success_count = 0
         fail_count = 0
         
-        status_msg = await update.message.reply_text("📢 Duyuru gönderiliyor, lütfen bekleyin...")
+        status_msg = await update.message.reply_text(f"{E_ROCKET} Duyuru gönderiliyor, lütfen bekleyin...")
         
         target_users = user_profiles.keys()
         
@@ -806,35 +775,33 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                 fail_count += 1
                 
         await status_msg.edit_text(
-            f"✅ <b>Duyuru Başarıyla Tamamlandı!</b>\n\n"
+            f"{E_CHECK} <b>Duyuru Başarıyla Tamamlandı!</b>\n\n"
             f"📤 Başarılı: <code>{success_count}</code>\n"
-            f"❌ Başarısız: <code>{fail_count}</code>",
+            f"{E_BAN} Başarısız: <code>{fail_count}</code>",
             parse_mode="HTML"
         )
 
-    # Adım 1: Klon Bot Token Alımı
     elif user_id in clone_process_state and clone_process_state[user_id]["step"] == "waiting_for_token":
         token_input = update.message.text.strip()
         if ":" not in token_input or len(token_input) < 20:
-            await update.message.reply_text("❌ Geçersiz bot token formatı! Lütfen @BotFather'dan aldığınız doğru tokeni gönderin.")
+            await update.message.reply_text(f"{E_BAN} Geçersiz bot token formatı! Lütfen @BotFather'dan aldığınız doğru tokeni gönderin.")
             return
 
         clone_process_state[user_id]["token"] = token_input
         clone_process_state[user_id]["step"] = "waiting_for_owner_id"
         
         await update.message.reply_text(
-            "🤖 <b>BOT KLONLAMA SİSTEMİ (2/2)</b>\n\n"
-            "Token başarıyla alındı! Şimdi bu botun sahibi (owner) olacak kişinin **Telegram Kullanıcı ID'sini** (rakamsal ID) yazın:",
+            f"{E_ROBOT} <b>BOT KLONLAMA SİSTEMİ (2/2)</b>\n\n"
+            "Token başarıyla alındı! Şimdi bu botun sahibi (owner) olacak kişinin **Telegram Kullanıcı ID'sini** yazın:",
             parse_mode="HTML"
         )
 
-    # Adım 2: Klon Bot Owner ID Alımı ve Kaydı
     elif user_id in clone_process_state and clone_process_state[user_id]["step"] == "waiting_for_owner_id":
         owner_id_input = update.message.text.strip()
         try:
             owner_id = int(owner_id_input)
         except ValueError:
-            await update.message.reply_text("❌ Geçersiz ID! Lütfen sadece sayısal bir Telegram ID girin.")
+            await update.message.reply_text(f"{E_BAN} Geçersiz ID! Lütfen sadece sayısal bir Telegram ID girin.")
             return
 
         token = clone_process_state[user_id]["token"]
@@ -842,7 +809,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
         save_clone_bot_data(token, owner_id=owner_id, active=True)
         await update.message.reply_text(
-            f"🚀 <b>Yeni bot başarıyla klonlandı ve kaydedildi!</b>\n\n"
+            f"{E_ROCKET} <b>Yeni bot başarıyla klonlandı ve kaydedildi!</b>\n\n"
             f"👤 Sahip (Owner) ID: <code>{owner_id}</code>\n"
             f"Bot arka planda başlatılıyor...",
             parse_mode="HTML"
@@ -861,7 +828,7 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(args[0])
         banned_users.add(target_id)
         save_db()
-        await update.message.reply_text(f"🔨 Banlandı: <code>{target_id}</code>", parse_mode="HTML")
+        await update.message.reply_text(f"{E_BAN} Banlandı: <code>{target_id}</code>", parse_mode="HTML")
     except ValueError:
         pass
 
@@ -877,13 +844,13 @@ async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if target_id in banned_users:
             banned_users.remove(target_id)
             save_db()
-            await update.message.reply_text(f"🔓 Banı açıldı: <code>{target_id}</code>", parse_mode="HTML")
+            await update.message.reply_text(f"{E_UNBAN} Banı açıldı: <code>{target_id}</code>", parse_mode="HTML")
     except ValueError:
         pass
 
 
 async def background_api_watcher(app: Application):
-    logger.info("⚡ Gözlemci başlatıldı.")
+    logger.info("Gözlemci başlatıldı.")
     initial_items = await fetch_api_data()
     for item in initial_items:
         details = extract_sms_details(item)
@@ -929,6 +896,9 @@ async def post_init(application: Application):
 # ==================== KLON BOT ÇALIŞTIRICI ====================
 async def start_clone_bot(token: str, owner_id: int):
     try:
+        if token in running_clone_apps:
+            return
+            
         builder = Application.builder().token(token).post_init(post_init)
         clone_app = builder.build()
 
@@ -939,11 +909,11 @@ async def start_clone_bot(token: str, owner_id: int):
         clone_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
         running_clone_apps[token] = clone_app
-        logger.info(f"🤖 Klon bot başarıyla başlatıldı (Sahip ID: {owner_id})")
+        logger.info(f"Klon bot başlatıldı (Sahip ID: {owner_id})")
         
         await clone_app.initialize()
         await clone_app.start()
-        await clone_app.updater.start_polling()
+        await clone_app.updater.start_polling(drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Klon bot başlatılamadı ({token[:10]}...): {e}")
 
@@ -964,7 +934,6 @@ async def start_web_server():
 
 
 def main():
-    # Ana bot yapılandırması
     builder = Application.builder().token(MAIN_BOT_TOKEN).post_init(post_init)
     app = builder.build()
 
@@ -974,7 +943,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
-    print("🚀 Vantorium Team Genişletilmiş Multi-Bot & Klonlanabilir OTP Bot Sistemi Aktif!")
+    print("Vantorium Team Kararlı Multi-Bot & Klonlanabilir OTP Bot Sistemi Aktif!")
     
     try:
         loop = asyncio.get_running_loop()
@@ -982,16 +951,14 @@ def main():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-    # Render port sunucusunu başlat
     loop.create_task(start_web_server())
 
-    # Kayıtlı ve aktif olan klon botları otomatik başlat
     clone_bots = load_clone_bots()
     for b in clone_bots:
         if b.get("active", True):
             loop.create_task(start_clone_bot(b["token"], b["owner_id"]))
         
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
